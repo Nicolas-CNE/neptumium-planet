@@ -94,6 +94,10 @@ typedef struct {
     dep *replaces;  int nreplaces;   /* supersedes / takes over from    */
 
     int   installed;    /* already present in the target root?         */
+    /* Explicitly requested by the user (vs pulled in as a dependency).
+     * This is what makes `autoremove` correct: a package stays if it is
+     * explicit OR is reachable from an explicit package through dependencies. */
+    int   explicit_installed;
     long  isize;        /* installed size in bytes (for --solver-stats)*/
     char *desc;         /* one-line description (for search)           */
 

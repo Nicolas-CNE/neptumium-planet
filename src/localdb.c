@@ -105,6 +105,7 @@ static package *parse_desc_file(const char *path, char *errbuf, size_t errlen) {
         if (buf[i] == '\n') buf[i] = '\0';
 
     const char *name = NULL, *ver = NULL, *arch = NULL, *desc = NULL;
+    int explicit_flag = 0;   /* set when the desc carries an %EXPLICIT% tag */
     dep depends[64];   int ndep = 0;
     dep provides[64];  int nprov = 0;
     dep conflicts[64]; int nconf = 0;
@@ -126,6 +127,7 @@ static package *parse_desc_file(const char *path, char *errbuf, size_t errlen) {
             else if (!strcmp(cur, "VERSION") && !ver) ver = line;
             else if (!strcmp(cur, "ARCH") && !arch) arch = line;
             else if (!strcmp(cur, "DESC") && !desc) desc = line;
+            else if (!strcmp(cur, "EXPLICIT")) explicit_flag = 1;
             else if (!strcmp(cur, "DEPENDS") && ndep < 64) {
                 if (dep_parse(&depends[ndep], line)) ndep++;
             } else if (!strcmp(cur, "PROVIDES") && nprov < 64) {
@@ -145,6 +147,7 @@ static package *parse_desc_file(const char *path, char *errbuf, size_t errlen) {
     package *pk = pkg_new(name, ver, arch);
     if (!pk) { free(buf); return NULL; }
     if (desc) pkg_set_desc(pk, desc);
+    pk->explicit_installed = explicit_flag;
     /* dep_str() returns a malloc'd spec that pkg_add_*() copies from, so the
      * temporary must be freed after each call. */
     for (int i = 0; i < ndep;   i++) { char *s = dep_str(&depends[i]);   if (s) { pkg_add_dep(pk, s);       free(s); } }
@@ -240,6 +243,7 @@ int localdb_add(const char *root, const package *p,
     if (p->isize >= 0) fprintf(f, "%%ISIZE%%\n%ld\n\n", p->isize);
     if (p->sha256)  fprintf(f, "%%SHA256SUM%%\n%s\n\n", p->sha256);
     if (p->origin)  fprintf(f, "%%URL%%\n%s\n\n", p->origin);
+    if (p->explicit_installed) fprintf(f, "%%EXPLICIT%%\n1\n\n");
     for (int i = 0; i < p->ndepends; i++)
         fprintf(f, "%%DEPENDS%%\n%s%s%s\n", p->depends[i].name,
                 dep_op_str(p->depends[i].op),
@@ -267,6 +271,68 @@ int localdb_add(const char *root, const package *p,
         fprintf(f, "%s\n", files[i]);
     fclose(f);
     free(fl); free(desc); free(dir);
+    return 0;
+}
+
+int localdb_set_explicit(const char *root, const char *name,
+                         const char *version, int explicit) {
+    char *dir = pkg_dir(root, name, version);
+    if (!dir) return fail("out of memory");
+    char *path = malloc(strlen(dir) + 16);
+    if (!path) { free(dir); return fail("out of memory"); }
+    snprintf(path, strlen(dir) + 16, "%s/desc", dir);
+
+    /* Read the desc, drop any existing %EXPLICIT% block, re-append if wanted. */
+    FILE *f = fopen(path, "r");
+    if (!f) {
+        int e = errno;
+        fail("cannot read %s: %s", path, strerror(e));
+        free(path); free(dir);
+        return -1;
+    }
+    char *buf = NULL; size_t used = 0, cap = 0;
+    char line[1024];
+    int skip_block = 0;
+    while (fgets(line, sizeof line, f)) {
+        if (line[0] == '%') {
+            skip_block = (strncmp(line, "%EXPLICIT%", 10) == 0);
+            if (skip_block) continue;
+        } else if (skip_block) {
+            if (line[0] == '\n' || line[0] == '\r') skip_block = 0;  /* block ended */
+            else continue;
+        }
+        size_t l = strlen(line);
+        if (used + l + 1 > cap) {
+            cap = (used + l + 1) * 2;
+            char *g = realloc(buf, cap);
+            if (!g) { free(buf); fclose(f); free(path); free(dir); return fail("out of memory"); }
+            buf = g;
+        }
+        memcpy(buf + used, line, l);
+        used += l;
+    }
+    fclose(f);
+    if (!buf) { buf = strdup(""); if (!buf) { free(path); free(dir); return fail("out of memory"); } used = 0; }
+
+    if (explicit) {
+        size_t l = strlen("%EXPLICIT%\n1\n\n");
+        char *g = realloc(buf, used + l + 1);
+        if (!g) { free(buf); free(path); free(dir); return fail("out of memory"); }
+        buf = g;
+        memcpy(buf + used, "%EXPLICIT%\n1\n\n", l);
+        used += l;
+    }
+
+    f = fopen(path, "w");
+    if (!f) {
+        int e = errno;
+        fail("cannot write %s: %s", path, strerror(e));
+        free(buf); free(path); free(dir);
+        return -1;
+    }
+    fwrite(buf, 1, used, f);
+    fclose(f);
+    free(buf); free(path); free(dir);
     return 0;
 }
 

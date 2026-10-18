@@ -24,6 +24,12 @@
 /* The local db root for a given target system root. */
 char *localdb_path(const char *root);
 
+/* Mark/unmark a package as explicitly installed (vs installed as a
+ * dependency). Stored as a `%EXPLICIT%` tag in its desc so the distinction
+ * survives a reboot. Returns 0 on success, -1 with localdb_error() set. */
+int localdb_set_explicit(const char *root, const char *name,
+                         const char *version, int explicit);
+
 /* Is this exact package (name+version) installed on `root`? */
 int  localdb_is_installed(const char *root, const char *name, const char *version);
 

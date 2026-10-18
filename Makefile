@@ -13,7 +13,9 @@ CORE_SRC := $(SRC_DIR)/sat.c $(SRC_DIR)/amo.c $(SRC_DIR)/dimacs.c \
             $(SRC_DIR)/maxsat.c $(SRC_DIR)/pkg.c $(SRC_DIR)/encode.c \
             $(SRC_DIR)/net.c $(SRC_DIR)/archrepo.c \
             $(SRC_DIR)/sha256.c $(SRC_DIR)/pkgfile.c $(SRC_DIR)/localdb.c \
-            $(SRC_DIR)/hooks.c
+            $(SRC_DIR)/hooks.c $(SRC_DIR)/state.c \
+            $(SRC_DIR)/cli_util.c $(SRC_DIR)/cli_txn.c \
+            $(SRC_DIR)/cmd_repo.c $(SRC_DIR)/cmd_admin.c $(SRC_DIR)/cmd_query.c
 CORE_OBJ := $(patsubst $(SRC_DIR)/%.c,$(BUILD)/%.o,$(CORE_SRC))
 
 # External libraries for the network/repo layer: libcurl (fetch) and

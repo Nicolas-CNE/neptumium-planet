@@ -6,12 +6,34 @@ prints is *provably optimal* rather than merely feasible — there is no greedy
 heuristic anywhere in the resolution path.
 
 ```
-planet sync
-planet install zstd vim
-planet remove linux-api-headers
-planet upgrade -S          # with solver statistics
-planet autoremove
-planet lock
+planet sync                      # refresh the repository databases
+planet install zstd vim          # optimal transaction, applied
+planet remove vim                # keeps everything that still needs glibc
+planet upgrade -S                # newest feasible set, with solver stats
+planet autoremove                # drop what nothing depends on
+planet mark explicit vim         # remember why it should stay
+planet profile save before       # snapshot the installed set
+planet rollback before           # re-solve back to that snapshot
+planet lock                      # write the exact installed set
+```
+
+Inspection:
+
+```
+planet query list                # what is installed, and why it is there
+planet query orphans             # candidates for autoremove
+planet query check               # broken dependency edges
+planet why zstd                  # walk the graph back to an explicit request
+planet files zstd                # which paths a package owns
+planet owns /usr/bin/zstd        # which package owns a path
+planet deptest zstd              # are these dependencies satisfiable?
+planet cache                     # what payloads we have downloaded
+```
+
+Targeting another tree (`--installroot` is pacman's synonym for `--root`):
+
+```
+planet install --installroot /mnt/stage zstd
 ```
 
 ## Why a MaxSAT solver
@@ -90,4 +112,23 @@ make test       # run the full suite (251 checks)
 | `src/pkgfile.c` | payload download, SHA-256 verify, extraction |
 | `src/localdb.c` | installed-system database |
 | `src/hooks.c` | ALPM hooks |
-| `src/main.c` | the `planet` CLI |
+| `src/cli.h` | shared CLI plumbing (options, colour, declarations) |
+| `src/main.c` | argument parsing and dispatch only |
+| `src/cli_util.c` | CLI helpers and repository loading |
+| `src/cli_txn.c` | the transaction machinery |
+| `src/cmd_repo.c` | sync, search, info, stats, solve, dump-cnf, doctor |
+| `src/cmd_query.c` | query, files, owns, why, mark, deptest |
+| `src/cmd_admin.c` | lock, profile, cache |
+| `src/state.c` | transaction locking and system profiles |
+
+## Transaction safety
+
+Mutating commands take an exclusive lock on `<root>/var/lib/planet/db.lck` for
+their duration. A lock left behind by a crashed process is detected through
+its recorded PID and reclaimed automatically once that process is gone, so a
+crash never leaves a system permanently locked.
+
+Profiles are named snapshots of the installed set. Because the target state is
+computed by the solver rather than replayed, a rollback is validated before
+anything is written and refused outright if the old set is no longer
+satisfiable (a repository can drop packages over time).
