@@ -351,6 +351,16 @@ int run_transaction(const options *o, const char *label,
                        upg[i] ? HP_PRE_UPGRADE : HP_PRE_INSTALL,
                        &to_install[i], 1);
         if (do_install_one(o, to_install[i]) != 0) { errs++; continue; }
+        /* Record why the package is here: anything the user named explicitly
+         * is an EXPLICIT install, everything pulled in to satisfy it is a
+         * dependency. `autoremove` removes only what is not reachable from an
+         * explicit package, so this distinction has to be persisted here. */
+        for (int a = 0; a < nadd; a++)
+            if (pkg_provides(to_install[i], add[a].name, add[a].op, add[a].version)) {
+                localdb_set_explicit(o->root, to_install[i]->name,
+                                     to_install[i]->version, 1);
+                break;
+            }
         run_pkg_hook(o, to_install[i],
                      upg[i] ? IP_POST_UPGRADE : IP_POST_INSTALL);
         hooks_run_repo(o->root, "Install",

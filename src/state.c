@@ -47,6 +47,21 @@ static char *state_dir(const char *root) {
     return p;
 }
 
+/* mkdir -p: the target root may be brand new, in which case its /var/lib
+ * parent does not exist yet and a single mkdir() would fail. */
+static int mkdirs(const char *path) {
+    char tmp[1024];
+    snprintf(tmp, sizeof tmp, "%s", path);
+    for (char *p = tmp + 1; *p; p++) {
+        if (*p == '/') {
+            *p = '\0';
+            if (mkdir(tmp, 0755) != 0 && errno != EEXIST) return -1;
+            *p = '/';
+        }
+    }
+    return (mkdir(tmp, 0755) != 0 && errno != EEXIST) ? -1 : 0;
+}
+
 /* ---- locking ------------------------------------------------------------- */
 
 static char  g_lockfile[1024];
@@ -78,7 +93,7 @@ static long lockfile_pid(const char *path) {
 int lock_acquire(const char *root) {
     char *dir = state_dir(root);
     if (!dir) return fail("out of memory");
-    if (mkdir(dir, 0755) != 0 && errno != EEXIST) {
+    if (mkdirs(dir) != 0) {
         int e = errno;
         int r = fail("cannot create %s: %s", dir, strerror(e));
         free(dir);
