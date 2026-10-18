@@ -184,6 +184,58 @@ static void test_missing_request(void) {
     enc_free(e); repo_free(r);
 }
 
+/* The encoder scopes candidates to the closure reachable from the registered
+ * requests and hard requirements, so a package nobody depends on never becomes
+ * a candidate. `planet remove` still has to be able to take such a package off
+ * the system, which it does by asking enc_chosen_pkg() about the installed
+ * package directly. Both halves of that contract are pinned here: the package
+ * is genuinely absent from the candidate set, and enc_chosen_pkg() reports it
+ * as unselected rather than crashing or reporting a stale answer. */
+static void test_closure_excludes_unreferenced(void) {
+    repo *r = repo_new();
+    package *a = pkg_new("a", "1.0-1", NULL);
+    pkg_add_dep(a, "b");
+    package *b = pkg_new("b", "1.0-1", NULL);
+    package *lonely = pkg_new("lonely", "1.0-1", NULL);   /* nothing refs it */
+    repo_add(r, a); repo_add(r, b); repo_add(r, lonely);
+
+    encoder *e = enc_new(r);
+    enc_request(e, "a", DEP_ANY, NULL, 0);
+    int rc = enc_solve(e);
+    check("closure: solve optimal", rc == MAXSAT_OPTIMAL);
+    check("closure: a chosen", enc_chosen_pkg(e, a));
+    check("closure: b chosen via dep", enc_chosen_pkg(e, b));
+
+    /* The whole point: `lonely` is outside the closure, so it is not a
+     * candidate, and must read as unselected so removal picks it up. */
+    int cand_lonely = find_cand(r, e, "lonely", "1.0-1");
+    check("closure: unreferenced pkg is NOT a candidate", cand_lonely < 0);
+    check("closure: unreferenced pkg reads as unselected",
+          !enc_chosen_pkg(e, lonely));
+    check("closure: candidate count restricted", enc_ncandidates(e) == 2);
+
+    enc_free(e); repo_free(r);
+}
+
+/* A package that IS reachable must stay out of the way of removal: if it is
+ * required, enc_chosen_pkg() must say so. Guards the other direction, where a
+ * too-eager closure would silently drop a package that has to stay. */
+static void test_closure_keeps_required(void) {
+    repo *r = repo_new();
+    package *keepme = pkg_new("keepme", "1.0-1", NULL);
+    package *dep = pkg_new("dep", "1.0-1", NULL);
+    pkg_add_dep(keepme, "dep");
+    repo_add(r, keepme); repo_add(r, dep);
+
+    encoder *e = enc_new(r);
+    /* Hard require only: no requests at all. */
+    check("closure: require accepted", enc_require(e, "keepme", DEP_ANY, NULL));
+    check("closure: require-only solve optimal", enc_solve(e) == MAXSAT_OPTIMAL);
+    check("closure: required pkg chosen", enc_chosen_pkg(e, keepme));
+    check("closure: its dependency chosen too", enc_chosen_pkg(e, dep));
+    enc_free(e); repo_free(r);
+}
+
 int main(void) {
     printf("== Planet encoding tests ==\n");
     test_simple_dep();
@@ -194,6 +246,8 @@ int main(void) {
     test_provides();
     test_replaces();
     test_missing_request();
+    test_closure_excludes_unreferenced();
+    test_closure_keeps_required();
 
     printf("\n%d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;

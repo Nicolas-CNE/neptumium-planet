@@ -351,6 +351,19 @@ int maxsat_solve(maxsat *m) {
         return MAXSAT_UNSAT;
     }
 
+    /* Trivial case: no soft clauses at all. Just check if hard clauses are SAT. */
+    if (m->nsofts == 0) {
+        int rc = sat_solve(m->s);
+        if (rc == 1) {
+            m->solved = 1;
+            m->best_cost = 0;
+            m->nkept = 0;
+            return MAXSAT_OPTIMAL;
+        }
+        m->solved = 1;
+        return MAXSAT_UNSAT;
+    }
+
     m->rounds    = 0;
     m->solved    = 0;
     m->best_cost = 0;
@@ -441,6 +454,8 @@ int maxsat_solve(maxsat *m) {
 long maxsat_cost(const maxsat *m)     { return m->best_cost; }
 int  maxsat_remaining(const maxsat *m){ return m->nkept; }
 long maxsat_rounds(const maxsat *m)   { return m->rounds; }
+int maxsat_nsofts(const maxsat *m)    { return m ? m->nsofts : 0; }
+int maxsat_ncores(const maxsat *m)    { return m ? m->ncores : 0; }
 
 int maxsat_value(const maxsat *m, var v) {
     /* Collapse the engine's 3-valued answer to the boolean the caller wants

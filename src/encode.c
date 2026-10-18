@@ -67,6 +67,8 @@ struct encoder {
     request *reqs;      int nreqs, cap_reqs;
     request *hreqs;     int nhreqs, cap_hreqs;   /* hard keep-pins (remove/upgrade) */
 
+    int      built;     /* candidates+groups materialised (at first solve) */
+
     maxsat *m;          /* built fresh on each enc_solve */
 
     int    *chosen;     /* per-candidate 0/1, valid after MAXSAT_OPTIMAL */
@@ -119,19 +121,111 @@ encoder *enc_new(const repo *r) {
     if (!e) return NULL;
     e->r     = r;
     e->w     = enc_default_weights();
+    /* Candidates and groups are built by build_candidates() at the first
+     * enc_solve()/enc_dump_cnf(), once every request and hard requirement is
+     * known. See build_candidates() for why scoping to the reachable closure
+     * matters. */
+    return e;
+}
 
-    int n = repo_count(r);
-    e->cands = calloc((size_t)(n ? n : 1), sizeof *e->cands);
-    if (!e->cands) { free(e); return NULL; }
-    e->ncands = n;
-    for (int i = 0; i < n; i++) {
-        e->cands[i].p     = repo_get(r, i);
-        e->cands[i].group = -1;
+/* Materialise the candidate set: only packages reachable from the registered
+ * requests and hard requirements, closed transitively over dependencies.
+ *
+ * WHY NOT EVERY PACKAGE IN THE REPO
+ * ---------------------------------
+ * The obvious encoding gives every synced package a variable. Against the real
+ * Arch repositories that is ~15,300 candidates for a transaction that touches
+ * a couple of hundred packages, and the cost is superlinear in that number:
+ * the implicit-hitting-set master pays one oracle call per soft clause per
+ * core round, so the solve went from seconds to ~113 s on an install of five
+ * packages on an otherwise idle system. Restricting to the closure turns that
+ * 15,336-soft instance into a few hundred.
+ *
+ * This is sound, not an approximation. The roots are exactly the wishes and
+ * the must-keeps; the closure adds every PROVIDER of every dependency reached,
+ * so any package that could usefully enter the solution is already present. A
+ * package outside the closure discharges no reachable dependency and satisfies
+ * no root, so no optimal solution needs it. Conflicts/Replaces against
+ * out-of-closure packages are simply not emitted, which is harmless for the
+ * same reason.
+ *
+ * Candidates are emitted in repo order so that cand_index() (pointer identity)
+ * and the caller's index-based iteration both keep working unchanged. */
+static int build_candidates(encoder *e) {
+    if (e->built) return 1;
+    if (!e->r) return 0;
+    e->built = 1;
+
+    int total = repo_count(e->r);
+    if (total <= 0) return 1;
+
+    unsigned char *reach = calloc((size_t)total, 1);
+    /* Worklist of (name, op, version) still to resolve. Requests and hard
+     * requirements are the roots; each reachable package contributes its own
+     * dependencies as further roots. Entries own their strings. */
+    char **qn = calloc((size_t)total, sizeof *qn);
+    dep_op *qo = malloc((size_t)total * sizeof *qo);
+    char **qv = calloc((size_t)total, sizeof *qv);
+    if (!reach || !qn || !qo || !qv) {
+        free(reach); free(qn); free(qo); free(qv);
+        return 0;
     }
+
+    int qn_len = 0, qn_cap = total;
+    for (int pass = 0; pass < 2; pass++) {
+        request *rs = pass ? e->hreqs : e->reqs;
+        int      nr = pass ? e->nhreqs : e->nreqs;
+        for (int k = 0; k < nr; k++) {
+            if (qn_len >= qn_cap) break;
+            qn[qn_len] = rs[k].name;
+            qo[qn_len] = rs[k].op;
+            qv[qn_len] = rs[k].ver;
+            qn_len++;
+        }
+    }
+
+    const package **prov = malloc((size_t)total * sizeof *prov);
+    int head = 0, found = 0;
+    while (head < qn_len) {
+        const char *nm = qn[head]; dep_op op = qo[head]; char *vv = qv[head];
+        head++;
+        if (!nm) continue;
+        int np = repo_lookup(e->r, nm, op, vv, prov, total);
+        for (int t = 0; t < np; t++) {
+            const package *p = prov[t];
+            int ri = repo_index_of(e->r, p);
+            if (ri < 0) continue;
+            if (reach[ri]) continue;
+            reach[ri] = 1;
+            found++;
+            /* Its dependencies become new roots so their providers join too. */
+            for (int d = 0; d < p->ndepends && qn_len < qn_cap; d++) {
+                qn[qn_len] = p->depends[d].name;
+                qo[qn_len] = p->depends[d].op;
+                qv[qn_len] = p->depends[d].version;
+                qn_len++;
+            }
+        }
+    }
+    free(prov);
+    free(qn); free(qo); free(qv);
+
+    /* Compact: emit reachable candidates in repo order. */
+    e->cands = calloc((size_t)(found ? found : 1), sizeof *e->cands);
+    if (!e->cands) { free(reach); return 0; }
+    int k = 0;
+    for (int i = 0; i < total; i++) {
+        if (!reach[i]) continue;
+        e->cands[k].p     = repo_get(e->r, i);
+        e->cands[k].group = -1;
+        k++;
+    }
+    e->ncands = k;
+    free(reach);
 
     /* Group candidates by package NAME so each group can get one AMO and the
      * newest-first footprint/version soft family. */
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < e->ncands; i++) {
         const package *p = e->cands[i].p;
         int g = -1;
         for (int j = 0; j < e->ngroups; j++)
@@ -140,18 +234,18 @@ encoder *enc_new(const repo *r) {
             }
         if (g < 0) {
             ngroup *ng = realloc(e->groups, (size_t)(e->ngroups + 1) * sizeof *ng);
-            if (!ng) { enc_free(e); return NULL; }
+            if (!ng) { enc_free(e); return 0; }
             e->groups = ng;
             g = e->ngroups++;
             e->groups[g].name    = p->name;
             e->groups[g].members = NULL;
             e->groups[g].n = e->groups[g].cap = 0;
         }
-        if (!group_push(&e->groups[g], i)) { enc_free(e); return NULL; }
+        if (!group_push(&e->groups[g], i)) { enc_free(e); return 0; }
         e->cands[i].group = g;
     }
     for (int j = 0; j < e->ngroups; j++) sort_group_newest(e, &e->groups[j]);
-    return e;
+    return 1;
 }
 
 void enc_set_weights(encoder *e, enc_weights w) {
@@ -288,6 +382,7 @@ static void add_noncoexist(encoder *e, int ci, const dep *d,
  * WITHOUT running the solver — invaluable for reproducing encoding bugs. */
 static int enc_build(encoder *e) {
     if (!e) return MAXSAT_UNSAT;
+    if (!build_candidates(e)) return MAXSAT_UNSAT;
     if (e->m) { maxsat_free(e->m); e->m = NULL; }
     free(e->chosen); e->chosen = NULL;
     e->cost = 0; e->nsatisfied = 0;
@@ -403,6 +498,34 @@ int enc_dump_cnf(encoder *e, FILE *fp) {
 /* ---- results ------------------------------------------------------------- */
 
 int enc_ncandidates(const encoder *e)          { return e ? e->ncands : 0; }
+
+/* Was the package p selected by the optimal set? Answers for packages OUTSIDE
+ * the encoding closure (nothing depends on them, so no request reaches them)
+ * as "not selected".
+ *
+ * Removal detection needs this: a package nobody depends on is legitimately
+ * absent from the candidate set, yet `planet remove` must still be able to
+ * take it off the system. Callers therefore ask about the installed package
+ * directly instead of scanning the candidate list for "chosen == 0".
+ *
+ * Matched on name AND version, not pointer identity. Candidates are repo
+ * objects, but callers routinely pass packages parsed out of the local
+ * database — a different heap object that happens to describe the same
+ * package. Pointer comparison would silently report every such package as
+ * unselected, which for `autoremove` meant deleting the entire system. */
+int enc_chosen_pkg(const encoder *e, const package *p) {
+    if (!e || !p || !e->chosen) return 0;
+    int j = cand_index(e, p);                     /* exact object, when we have it */
+    if (j < 0) {
+        for (int i = 0; i < e->ncands; i++) {
+            const package *c = e->cands[i].p;
+            if (c->name && p->name && strcmp(c->name, p->name) == 0 &&
+                c->version && p->version &&
+                strcmp(c->version, p->version) == 0) { j = i; break; }
+        }
+    }
+    return (j >= 0) ? e->chosen[j] : 0;
+}
 const package *enc_candidate(const encoder *e, int i) {
     return (e && i >= 0 && i < e->ncands) ? e->cands[i].p : NULL;
 }
@@ -413,6 +536,12 @@ long enc_cost(const encoder *e)                { return e ? e->cost : 0; }
 int  enc_satisfied(const encoder *e)           { return e ? e->nsatisfied : 0; }
 long enc_rounds(const encoder *e) {
     return (e && e->m) ? maxsat_rounds(e->m) : 0;
+}
+int enc_nsofts(const encoder *e) {
+    return (e && e->m) ? maxsat_nsofts(e->m) : 0;
+}
+int enc_ncores(const encoder *e) {
+    return (e && e->m) ? maxsat_ncores(e->m) : 0;
 }
 void enc_stats(const encoder *e, sat_stats *out) {
     if (e && e->m) maxsat_stats(e->m, out);

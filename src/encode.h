@@ -117,6 +117,9 @@ int enc_dump_cnf(encoder *e, FILE *fp);
 /* ---- results (valid after MAXSAT_OPTIMAL) -------------------------------- */
 
 int         enc_ncandidates(const encoder *e);
+/* Was package p selected? Returns 0 for packages outside the encoding closure,
+ * which is what lets `remove` delete a package nothing depends on. */
+int         enc_chosen_pkg(const encoder *e, const package *p);
 /* The i-th candidate in repo order; NULL if i out of range. */
 const package *enc_candidate(const encoder *e, int i);
 /* 1 if candidate i was chosen in the optimal set. */
@@ -129,6 +132,8 @@ long        enc_cost(const encoder *e);
 int         enc_satisfied(const encoder *e);
 /* Core rounds + inner CDCL stats, for `planet solve -S`. */
 long        enc_rounds(const encoder *e);
+int         enc_nsofts(const encoder *e);
+int         enc_ncores(const encoder *e);
 void        enc_stats(const encoder *e, sat_stats *out);
 
 /* Was request k satisfied by the optimal set? (k = index into the requests as

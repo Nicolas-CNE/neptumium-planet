@@ -404,6 +404,16 @@ const package *repo_get(const repo *r, int idx) {
     return (r && idx >= 0 && idx < r->n) ? r->pkgs[idx] : NULL;
 }
 
+int repo_index_of(const repo *r, const package *p) {
+    if (!r || !p) return -1;
+    /* repo_lookup() hands back pointers straight out of r->pkgs, so pointer
+     * identity is an exact index. Callers that receive a package from a lookup
+     * and need to address its slot in the repo (the encoder's reachability
+     * set, for instance) use this rather than a name comparison. */
+    for (int i = 0; i < r->n; i++) if (r->pkgs[i] == p) return i;
+    return -1;
+}
+
 /* The bucket of candidates that could possibly satisfy `name` (their own name
  * or a provide equals it), or NULL when the name is unknown. */
 static const struct repo_bucket *repo_bucket_of(const repo *r,

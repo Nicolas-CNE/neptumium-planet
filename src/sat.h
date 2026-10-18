@@ -109,10 +109,21 @@ typedef struct solver {
      * internal trail literals. */
     lit  *assump_lit;
     unsigned char *is_assump;
+
+    /* cumulative instrumentation (see sat_stats) */
+    long  learnts_total, solve_calls;
+    int   nclauses;
 } solver;
 
 typedef struct {
     long conflicts, decisions, propagations, restarts, learnts;
+    /* Cumulative counters. `learnts` above is the LIVE count of learnt clauses
+     * currently held, which clear_learnts() drops to zero at the end of every
+     * solve; reporting it as "learned clauses" therefore always reads 0 and
+     * hides whether learning is working at all. These accumulate for the
+     * lifetime of the solver. */
+    long learnts_total, solve_calls;
+    int  nvars, nclauses;
     /* VSIDS activity decay multiplier (1/(1+decay) is the "bump discount").
      * Reported by `planet --solver-stats` so users can see how aggressive
      * variable re-ranking is; 0 when no solve ran. */

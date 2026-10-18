@@ -137,6 +137,11 @@ int  maxsat_remaining(const maxsat *m);
 /* How many core rounds the loop ran — a direct measure of how tangled the
  * dependency problem was. Surfaced through `planet solve -S`. */
 long maxsat_rounds(const maxsat *m);
+/* Size of the optimization problem: how many soft clauses the master must hit
+ * and how many cores have been proven so far. Reported by `planet -S` because
+ * the cost of an IHS run is dominated by (softs x rounds) oracle calls. */
+int maxsat_nsofts(const maxsat *m);
+int maxsat_ncores(const maxsat *m);
 /* Inner CDCL engine statistics, for `planet --solver-stats`. */
 void maxsat_stats(const maxsat *m, sat_stats *out);
 

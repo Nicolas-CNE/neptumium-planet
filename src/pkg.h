@@ -159,6 +159,9 @@ int repo_add(repo *r, package *p);
 
 int repo_count(const repo *r);
 const package *repo_get(const repo *r, int idx);
+/* Index of p within the repo, or -1. Exact: repo_lookup() returns pointers
+ * straight from the repo, so pointer identity identifies the slot. */
+int repo_index_of(const repo *r, const package *p);
 
 /* All candidates that can satisfy the dependency (name, op, ver) — either by
  * matching name+version or by providing a virtual. Fills out[0..cap-1] and

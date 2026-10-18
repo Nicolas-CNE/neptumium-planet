@@ -310,13 +310,23 @@ int run_transaction(const options *o, const char *label,
     /* Diff: chosen-and-not-installed = to install; installed-and-not-chosen =
      * to remove. */
     int nci = 0, ncr = 0;
-    const package **to_install = malloc((size_t)(enc_ncandidates(e) ? enc_ncandidates(e) : 1) * sizeof *to_install);
-    const package **to_remove  = malloc((size_t)(enc_ncandidates(e) ? enc_ncandidates(e) : 1) * sizeof *to_remove);
-    for (int i = 0; i < enc_ncandidates(e); i++) {
+    int  ncand = enc_ncandidates(e);
+    int  nrepo = repo_count(r);
+    const package **to_install = malloc((size_t)(ncand ? ncand : 1) * sizeof *to_install);
+    const package **to_remove  = malloc((size_t)(nrepo ? nrepo : 1) * sizeof *to_remove);
+    /* Installs come from the candidate set (chosen and not already present). */
+    for (int i = 0; i < ncand; i++) {
         const package *p = enc_candidate(e, i);
-        int chosen = enc_chosen(e, i);
-        if (chosen && !p->installed) to_install[nci++] = p;
-        if (!chosen && p->installed)  to_remove[ncr++] = p;
+        if (enc_chosen(e, i) && !p->installed) to_install[nci++] = p;
+    }
+    /* Removals are decided over the INSTALLED set, not the candidate set. A
+     * package that nothing depends on is outside the encoding closure — no
+     * request reaches it, so it never becomes a candidate — yet `planet remove`
+     * must still be able to take it off the system. Asking "is this installed
+     * package absent from the optimal set?" covers both cases uniformly. */
+    for (int i = 0; i < nrepo; i++) {
+        const package *p = repo_get(r, i);
+        if (p->installed && !enc_chosen_pkg(e, p)) to_remove[ncr++] = p;
     }
 
     if (!confirm_transaction(label, o->dry_run, to_install, nci, to_remove, ncr)) {
@@ -390,7 +400,13 @@ int run_transaction(const options *o, const char *label,
                "%ld learned, VSIDS %.3f, %.2f ms\n", C_BOLD, C_OFF,
                st.conflicts, st.propagations,
                st.decisions ? (double)st.propagations / st.decisions : 0.0,
-               st.learnts, (double)st.vsids_decay, dt);
+               st.learnts_total, (double)st.vsids_decay, dt);
+        printf("    %sencoding%s: %d vars, %d hard clauses, %d softs; "
+               "%ld oracle calls over %ld IHS rounds\n",
+               C_DIM, C_OFF, st.nvars, st.nclauses, enc_nsofts(e),
+               st.solve_calls, enc_rounds(e));
+        printf("    %slearned%s: %ld total (%ld live at exit)\n",
+               C_DIM, C_OFF, st.learnts_total, st.learnts);
     }
 
     if (errs)
@@ -441,22 +457,23 @@ int cmd_autoremove(const options *o, int argc, char **argv) {
     package **inst = localdb_list(o->root, &ninst);
     if (!inst) die(1, "cannot read local db");
 
-    /* Build a request list keeping every installed package that is required by
-     * at least one other installed package (directly or via provides). */
+    /* Reachability from the EXPLICIT packages: everything the user asked for,
+     * plus everything transitively required to keep that working, stays.
+     *
+     * The explicit set must seed the search. Deriving the keep-list only from
+     * "some other installed package depends on this" has no starting point for
+     * a package nothing depends on — which is precisely what an explicitly
+     * installed leaf is — so `autoremove` would delete the user's own
+     * selections along with the true orphans. This mirrors pacman: explicit
+     * marks are the roots, and reachability from them defines the rest. */
     int ncap = 64, nkeep = 0;
     dep *keep = malloc((size_t)ncap * sizeof *keep);
+    unsigned char *kept = calloc((size_t)(ninst ? ninst : 1), 1);
+
+    /* Seeds: explicitly installed packages. */
     for (int i = 0; i < ninst; i++) {
-        int required = 0;
-        for (int j = 0; j < ninst; j++) {
-            if (i == j) continue;
-            for (int d = 0; d < inst[j]->ndepends; d++)
-                if (pkg_provides(inst[i], inst[j]->depends[d].name,
-                                  inst[j]->depends[d].op, inst[j]->depends[d].version)) {
-                    required = 1; break;
-                }
-            if (required) break;
-        }
-        if (!required) continue;   /* orphan candidate: not retained */
+        if (!inst[i]->explicit_installed) continue;
+        kept[i] = 1;
         if (nkeep == ncap) { ncap *= 2; keep = realloc(keep, (size_t)ncap * sizeof *keep); }
         char *spec = malloc(strlen(inst[i]->name) + strlen(inst[i]->version) + 2);
         sprintf(spec, "%s=%s", inst[i]->name, inst[i]->version);
@@ -464,6 +481,30 @@ int cmd_autoremove(const options *o, int argc, char **argv) {
         if (dep_parse(&d, spec)) keep[nkeep++] = d;
         free(spec);
     }
+
+    /* Expand transitively: anything a kept package needs is kept too. */
+    for (int i = 0; i < ninst; i++) {
+        if (!kept[i]) continue;
+        for (int j = 0; j < ninst; j++) {
+            if (kept[j]) continue;
+            int required = 0;
+            for (int d = 0; d < inst[i]->ndepends; d++)
+                if (pkg_provides(inst[j], inst[i]->depends[d].name,
+                                 inst[i]->depends[d].op,
+                                 inst[i]->depends[d].version)) {
+                    required = 1; break;
+                }
+            if (!required) continue;
+            kept[j] = 1;
+            if (nkeep == ncap) { ncap *= 2; keep = realloc(keep, (size_t)ncap * sizeof *keep); }
+            char *spec = malloc(strlen(inst[j]->name) + strlen(inst[j]->version) + 2);
+            sprintf(spec, "%s=%s", inst[j]->name, inst[j]->version);
+            dep d;
+            if (dep_parse(&d, spec)) keep[nkeep++] = d;
+            free(spec);
+        }
+    }
+    free(kept);
 
     encoder *e = enc_new(r);
     if (!e) { free(keep); localdb_free_list(inst); repo_free(r); die(1, "out of memory"); }
@@ -479,19 +520,28 @@ int cmd_autoremove(const options *o, int argc, char **argv) {
     }
 
     /* Remove installed packages the solver did not keep. */
-    int errs = 0, nremoved = 0;
+    int errs = 0;
+    /* Collect the orphans first, then honour the dry-run flag. The removals
+     * used to be applied inline, which meant `-n` printed the plan and then
+     * deleted the packages anyway. */
+    const package **orphans = malloc((size_t)(ninst ? ninst : 1) * sizeof *orphans);
+    int norphans = 0;
     for (int i = 0; i < ninst; i++) {
-        int still = 0;
-        for (int k = 0; k < enc_ncandidates(e); k++)
-            if (enc_chosen(e, k) && enc_candidate(e, k) == inst[i]) { still = 1; break; }
-        if (still) continue;
+        if (enc_chosen_pkg(e, inst[i])) continue;   /* still in the optimal set */
         printf("  %sremoving%s  %s %s (orphan)\n", C_RED, C_OFF,
                inst[i]->name, inst[i]->version);
-        if (do_remove_one(o, inst[i]) != 0) errs++;
-        nremoved++;
+        orphans[norphans++] = inst[i];
     }
-    if (nremoved == 0) printf("  %sno orphans found%s\n", C_DIM, C_OFF);
+    if (norphans == 0) printf("  %sno orphans found%s\n", C_DIM, C_OFF);
 
+    if (o->dry_run) {
+        printf("%sdry run: nothing was changed%s\n", C_DIM, C_OFF);
+    } else {
+        for (int i = 0; i < norphans; i++)
+            if (do_remove_one(o, orphans[i]) != 0) errs++;
+    }
+
+    free(orphans);
     for (int i = 0; i < nkeep; i++) dep_free(&keep[i]);
     free(keep); localdb_free_list(inst); enc_free(e); repo_free(r);
     return errs ? 1 : 0;

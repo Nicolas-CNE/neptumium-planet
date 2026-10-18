@@ -150,6 +150,7 @@ static clause *clause_new(solver *s, lit *lits, int n, int learnt) {
             s->origs = xrealloc(s->origs, (size_t)s->cap_origs * sizeof *s->origs);
         }
         s->origs[s->norigs++] = c;
+        s->nclauses++;
     }
     return c;
 }
@@ -529,6 +530,7 @@ static int search(solver *s, lit *core_out, int *core_n) {
                 s->learnts = xrealloc(s->learnts,
                                       (size_t)(s->nlearnts + 1) * sizeof *s->learnts);
                 s->learnts[s->nlearnts++] = c;
+                s->learnts_total++;
                 enqueue(s, learnt[0], c);
             }
             free(learnt);
@@ -571,7 +573,8 @@ static void reset_to_clean(solver *s) {
     s->qhead = 0;
     s->decision_level = 0;
     for (int i = 0; i < s->nunits; i++) enqueue(s, s->units[i], NULL);
-    s->trail_lim[0] = s->trail_sz;      /* level-0 section ends here */
+    if (s->cap_vars > 0)
+        s->trail_lim[0] = s->trail_sz;      /* level-0 section ends here */
 }
 
 /* Drop every learned clause.
@@ -617,6 +620,7 @@ int sat_solve_assumptions(solver *s, const lit *assumptions, int n,
     reset_to_clean(s);
     clear_learnts(s);                   /* never reuse clauses learned under
                                          * a previous assumption set */
+    s->solve_calls++;
 
     /* Tag each assumption's variable so core extraction can recognize it. */
     for (int i = 0; i < n; i++) {
@@ -712,6 +716,10 @@ void sat_stats_get(const solver *s, sat_stats *out) {
     out->propagations = s->propagations;
     out->restarts     = s->restarts;
     out->learnts      = s->nlearnts;
+    out->learnts_total = s->learnts_total;
+    out->solve_calls   = s->solve_calls;
+    out->nvars         = s->nvars;
+    out->nclauses      = s->nclauses;
     out->vsids_decay  = s->var_decay;
 }
 
@@ -721,8 +729,12 @@ void sat_print_stats(FILE *fp, const sat_stats *st) {
         "c propagations : %ld\n"
         "c conflicts    : %ld\n"
         "c restarts     : %ld\n"
-        "c learnts      : %ld\n"
+        "c learnts live : %ld\n"
+        "c learnts total: %ld\n"
+        "c solve calls  : %ld\n"
+        "c vars/clauses : %d / %d\n"
         "c vsids decay  : %.3f\n",
         st->decisions, st->propagations, st->conflicts,
-        st->restarts, st->learnts, (double)st->vsids_decay);
+        st->restarts, st->learnts, st->learnts_total, st->solve_calls,
+        st->nvars, st->nclauses, (double)st->vsids_decay);
 }
