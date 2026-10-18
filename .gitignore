@@ -1,0 +1,15 @@
+# Build output
+build/
+build-dbg/
+*.o
+planet
+
+# Editor / OS noise
+*.swp
+*~
+.DS_Store
+core
+core.*
+
+# Test scratch
+/tmp/
