@@ -1,5 +1,5 @@
 /*
- * hooks.c — Neptumium Planet: ALPM-compatible hooks (implementation).
+ * hooks.c — Neptunium Planet: ALPM-compatible hooks (implementation).
  * ================================================================
  *
  * See hooks.h for the format and the policy. Implementation notes:

@@ -1,5 +1,5 @@
 /*
- * net.h — Neptumium Planet: minimal network layer (HTTP/HTTPS fetch to memory).
+ * net.h — Neptunium Planet: minimal network layer (HTTP/HTTPS fetch to memory).
  *
  * WHAT THIS IS
  *   A small wrapper around libcurl with a single responsibility: return the

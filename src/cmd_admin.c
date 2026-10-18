@@ -1,5 +1,5 @@
 /*
- * cmd_admin.c — Neptumium Planet: lock files, profiles and the package cache.
+ * cmd_admin.c — Neptunium Planet: lock files, profiles and the package cache.
  * ========================================================================
  *
  * A profile is a named snapshot of the installed set. Because transactions

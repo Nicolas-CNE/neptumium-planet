@@ -1,5 +1,5 @@
 /*
- * hooks.h — Neptumium Planet: ALPM-compatible hooks.
+ * hooks.h — Neptunium Planet: ALPM-compatible hooks.
  * =====================================================
  *
  * Two independent hook mechanisms exist in the Arch ecosystem, and Planet

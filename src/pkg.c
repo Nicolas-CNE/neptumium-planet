@@ -1,5 +1,5 @@
 /*
- * pkg.c — Neptumium/Planet package data model.
+ * pkg.c — Neptunium/Planet package data model.
  * ============================================
  * See pkg.h for the public contract. The heart of this file is ver_cmp(), a
  * faithful implementation of the rpm/alpm version ordering that Arch uses:

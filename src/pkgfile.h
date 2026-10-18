@@ -1,5 +1,5 @@
 /*
- * pkgfile.h — Neptumium Planet: package payload fetch, verify and extract.
+ * pkgfile.h — Neptunium Planet: package payload fetch, verify and extract.
  * =========================================================================
  *
  * While the repo databases tell us WHAT a package is, the payload is the

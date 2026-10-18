@@ -1,5 +1,5 @@
 /*
- * pkgfile.c — Neptumium Planet: package payload fetch, verify and extract.
+ * pkgfile.c — Neptunium Planet: package payload fetch, verify and extract.
  * =========================================================================
  *
  * See pkgfile.h for the contract. The pipeline per package:

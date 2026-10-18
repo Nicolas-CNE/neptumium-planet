@@ -36,7 +36,7 @@
 
 static void usage(FILE *fp) {
     fprintf(fp,
-"%sNeptumium Planet%s %s — dependency resolution you can prove optimal\n"
+"%sNeptunium Planet%s %s — dependency resolution you can prove optimal\n"
 "\n"
 "%sUsage:%s planet [options] <command> [arguments]\n"
 "\n"
@@ -123,7 +123,7 @@ int main(int argc, char **argv) {
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i];
         if      (!strcmp(a, "-h") || !strcmp(a, "--help"))    { usage(stdout); return 0; }
-        else if (!strcmp(a, "-V") || !strcmp(a, "--version")) { printf("planet %s (Neptumium)\n", PLANET_VERSION); return 0; }
+        else if (!strcmp(a, "-V") || !strcmp(a, "--version")) { printf("planet %s (Neptunium)\n", PLANET_VERSION); return 0; }
         else if (!strcmp(a, "-n") || !strcmp(a, "--dry-run")) o.dry_run = 1;
         else if (!strcmp(a, "-y") || !strcmp(a, "--yes"))      o.yes = 1;
         else if (!strcmp(a, "-v") || !strcmp(a, "--verbose")) o.verbose = 1;
@@ -187,7 +187,7 @@ int main(int argc, char **argv) {
 
     int rc = 0;
     if      (!strcmp(cmd, "help"))       usage(stdout);
-    else if (!strcmp(cmd, "version"))    printf("planet %s (Neptumium)\n", PLANET_VERSION);
+    else if (!strcmp(cmd, "version"))    printf("planet %s (Neptunium)\n", PLANET_VERSION);
     else if (!strcmp(cmd, "sync"))       rc = cmd_sync(&o);
     else if (!strcmp(cmd, "search"))     { if (nargs < 1) die(2, "search needs a term");
                                            rc = cmd_search(&o, args[0]); }

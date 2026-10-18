@@ -1,5 +1,5 @@
 /*
- * pkg.h — Neptumium/Planet package data model.
+ * pkg.h — Neptunium/Planet package data model.
  * ============================================
  *
  * This is the layer that turns the abstract world of "packages" into data the

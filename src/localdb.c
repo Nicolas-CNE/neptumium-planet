@@ -1,5 +1,5 @@
 /*
- * localdb.c — Neptumium Planet: local (installed) package database.
+ * localdb.c — Neptunium Planet: local (installed) package database.
  * ======================================================================
  *
  * See localdb.h for the contract. The on-disk layout mirrors pacman:
@@ -9,7 +9,7 @@
  *
  * Keeping the same shape means the installed system is just another repo the
  * solver can diff against, and means tools that already understand pacman's
- * local db can inspect a Neptumium system.
+ * local db can inspect a Neptunium system.
  */
 #define _GNU_SOURCE  /* strdup() under -std=c11 */
 

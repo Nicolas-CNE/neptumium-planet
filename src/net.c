@@ -1,5 +1,5 @@
 /*
- * net.c — Neptumium Planet: HTTP/HTTPS fetch to memory / to a FILE*.
+ * net.c — Neptunium Planet: HTTP/HTTPS fetch to memory / to a FILE*.
  *
  * See net.h for the module contract.  Implementation notes:
  *
@@ -126,7 +126,7 @@ static CURL *make_handle(const char *url, long timeout_secs) {
     curl_easy_setopt(h, CURLOPT_URL, url);
 
     /* Identify the client in mirror access logs. */
-    curl_easy_setopt(h, CURLOPT_USERAGENT, "Neptumium-Planet/0.1 (+planet)");
+    curl_easy_setopt(h, CURLOPT_USERAGENT, "Neptunium-Planet/0.1 (+planet)");
 
     /* Mirror URLs commonly redirect (geo-DNS to the nearest edge); follow up
      * to 10 hops. */

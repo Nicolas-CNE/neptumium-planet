@@ -1,5 +1,5 @@
 /*
- * sha256.c — Neptumium Planet: self-contained SHA-256 implementation.
+ * sha256.c — Neptunium Planet: self-contained SHA-256 implementation.
  * ==================================================================
  *
  * Standard FIPS 180-4 SHA-256. Written out in full (no tables in rodata

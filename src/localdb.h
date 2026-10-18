@@ -1,5 +1,5 @@
 /*
- * localdb.h — Neptumium Planet: local (installed) package database.
+ * localdb.h — Neptunium Planet: local (installed) package database.
  * ======================================================================
  *
  * While the repo databases tell us what IS AVAILABLE, the local database

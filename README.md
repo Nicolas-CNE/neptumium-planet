@@ -1,6 +1,6 @@
 # Planet
 
-**Planet** is the package manager of **Neptumium**. Its dependency resolver is
+**Planet** is the package manager of **Neptunium**. Its dependency resolver is
 a from-scratch **CDCL MaxSAT solver** written in C, so every transaction Planet
 prints is *provably optimal* rather than merely feasible — there is no greedy
 heuristic anywhere in the resolution path.

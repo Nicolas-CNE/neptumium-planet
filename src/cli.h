@@ -1,5 +1,5 @@
 /*
- * cli.h — Neptumium Planet: shared CLI plumbing.
+ * cli.h — Neptunium Planet: shared CLI plumbing.
  * =============================================
  *
  * `main.c` only parses the command line and dispatches. The work lives in

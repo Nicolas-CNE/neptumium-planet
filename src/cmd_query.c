@@ -1,5 +1,5 @@
 /*
- * cmd_query.c — Neptumium Planet: inspecting the installed system.
+ * cmd_query.c — Neptunium Planet: inspecting the installed system.
  * =====================================================
  *
  * Read-only views of what is on the target root: what is installed, which

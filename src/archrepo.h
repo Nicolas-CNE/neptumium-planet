@@ -1,5 +1,5 @@
 /*
- * archrepo.h — Neptumium Planet: Arch sync-database reader.
+ * archrepo.h — Neptunium Planet: Arch sync-database reader.
  *
  * WHAT THIS IS
  *   Converts an Arch sync database (core.db.tar.gz / extra.db.tar.gz) into

@@ -1,5 +1,5 @@
 /*
- * sha256.h — Neptumium Planet: self-contained SHA-256.
+ * sha256.h — Neptunium Planet: self-contained SHA-256.
  * ====================================================
  *
  * Vendored (tiny, public-domain-style) so Planet has no OpenSSL dependency:

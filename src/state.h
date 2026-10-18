@@ -1,5 +1,5 @@
 /*
- * state.h — Neptumium Planet: transaction locking and system profiles.
+ * state.h — Neptunium Planet: transaction locking and system profiles.
  * ======================================================================
  *
  * Two pieces of transaction safety that a package manager cannot do without:

@@ -1,5 +1,5 @@
 /*
- * state.c — Neptumium Planet: transaction locking and system profiles.
+ * state.c — Neptunium Planet: transaction locking and system profiles.
  * ======================================================================
  *
  * See state.h for the rationale.

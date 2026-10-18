@@ -1,5 +1,5 @@
 /*
- * cli_txn.c — Neptumium Planet: the transaction machinery.
+ * cli_txn.c — Neptunium Planet: the transaction machinery.
  * =============================================
  *
  * One path serves every mutating command:

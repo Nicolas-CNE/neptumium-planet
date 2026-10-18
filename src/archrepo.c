@@ -1,5 +1,5 @@
 /*
- * archrepo.c — Neptumium Planet: Arch sync-database reader (implementation).
+ * archrepo.c — Neptunium Planet: Arch sync-database reader (implementation).
  *
  * See archrepo.h for the format documentation.  The pipeline is:
  *

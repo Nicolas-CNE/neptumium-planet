@@ -1,5 +1,5 @@
 /*
- * cmd_repo.c — Neptumium Planet: repository-facing commands.
+ * cmd_repo.c — Neptunium Planet: repository-facing commands.
  * =============================================
  *
  * sync, search, info, stats, solve, dump-cnf and doctor: everything that

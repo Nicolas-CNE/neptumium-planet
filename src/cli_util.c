@@ -1,5 +1,5 @@
 /*
- * cli_util.c — Neptumium Planet: small CLI helpers and repository loading.
+ * cli_util.c — Neptunium Planet: small CLI helpers and repository loading.
  * =============================================================
  *
  * Shared by every command module: fatal errors, formatting, confirmation
