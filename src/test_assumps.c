@@ -35,7 +35,7 @@ int main(void) {
         for (int i = 0; i < cn; i++) if (core[i] == lit_mk(b,0)) has_b = 1;
         check("core: contains b (the culprit)", has_b);
 
-        /* now assume only a -> STILL UNSAT, and it's a great core check:
+        /* Assume only a -> STILL UNSAT, and the core must be exactly {a}:
          * hard ~b plus (~a|b) means a implies b, which contradicts ~b.
          * So {a} alone is a minimal unsatisfiable core. */
         lit only_a[1] = { lit_mk(a,0) };

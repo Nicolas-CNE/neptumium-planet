@@ -40,7 +40,8 @@
  *        - unneeded packages stay uninstalled (only footprint pushes);
  *        - when a name must be installed (hard dep or request), the cheapest
  *          feasible candidate is the NEWEST one  =>  "prefer latest";
- *        - if the newest candidate is infeasible (its own deps can't be met)
+ *        - if the newest candidate is infeasible (its own dependencies
+ *          cannot be satisfied)
  *          the hard clauses simply forbid it and the solver drops to the
  *          newest *feasible* version automatically.
  *      This single family replaces what would otherwise be two separate,

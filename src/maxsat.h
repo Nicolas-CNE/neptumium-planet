@@ -28,21 +28,23 @@
  *
  * WHY "CORE-GUIDED"
  * -----------------
- * The naive approach — guess-and-check — is hopeless: you'd try combinations
- * until one worked. A core-guided loop instead LEARNS from failure:
+ * A naive guess-and-check approach is intractable: it would enumerate
+ * combinations until one happened to satisfy every hard clause. A core-guided
+ * loop instead learns from each failure:
  *
  *   1. Turn on every soft clause (assume all selectors true) and solve.
- *   2. If SAT, we satisfied everything still in play -> done, that's optimal.
- *   3. If UNSAT, ask the solver WHICH selectors caused the clash: the
- *      unsatisfiable core (sat_solve_assumptions gives us exactly this).
- *   4. From the core we learn an irrefutable fact:
- *          "at least one clause in this core must be dropped anyway"
- *      so we BANK the smallest weight in the core (it is guaranteed cost),
- *      REDUCE every member's weight by that amount, and add a clause that
- *      forbids the core from ever all-being-on again.
- *   5. Repeat. Each round the pool of positive-weight clauses shrinks, so the
- *      loop terminates, and when it does the banked cost is the provable
- *      OPTIMUM — not a heuristic guess.
+ *   2. If SAT, every remaining wish is satisfied simultaneously, so the
+ *      result is optimal and the loop terminates.
+ *   3. If UNSAT, ask the solver which selectors caused the clash: that set
+ *      is the unsatisfiable core (sat_solve_assumptions returns it).
+ *   4. The core yields an irrefutable fact — at least one of its clauses
+ *      must be dropped in any feasible solution — so the smallest weight in
+ *      the core is guaranteed cost. Bank that amount, subtract it from every
+ *      member's weight, and add a clause forbidding the whole core from ever
+ *      being on simultaneously again.
+ *   5. Repeat. Each round shrinks the pool of positive-weight clauses, so the
+ *      loop terminates; on termination the banked cost is the provable
+ *      optimum rather than a heuristic estimate.
  *
  * This is the reweighting core-guided algorithm (Fu–Malik lineage). It is
  * exact: `maxsat_cost()` returns the true minimum, and `maxsat_model()`

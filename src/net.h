@@ -7,7 +7,10 @@
  *   Planet go through it:
  *
  *     1. the repository databases  (core.db.tar.gz / extra.db.tar.gz),
- *     2. the package payloads      (.pkg.tar.zst / .tango.tar.zst) — later.
+ *     2. the package payloads      (.pkg.tar.zst / .tango.tar.zst).
+ *
+ * Both go through this layer, so caching, timeouts and TLS policy are
+ * defined once rather than per call site.
  *
  * DESIGN NOTES
  *   - Fetches into a growable buffer driven by libcurl's WRITEFUNCTION

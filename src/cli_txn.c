@@ -5,8 +5,8 @@
  * One path serves every mutating command:
  *
  *   1. load the repositories and merge the installed system state into them;
- *   2. build a request list — everything installed that must STAY becomes a
- *      HARD requirement, new wishes are soft ones, removals are excluded;
+ *   2. build a request list — everything installed that must remain becomes a
+ *      hard requirement, new wishes are soft ones, removals are excluded;
  *   3. let the MaxSAT solver compute the optimal target state;
  *   4. diff old against new to get installs and removals;
  *   5. confirm, then apply, running per-package and repository hooks around
@@ -446,7 +446,7 @@ int cmd_autoremove(const options *o, int argc, char **argv) {
                 }
             if (required) break;
         }
-        if (!required) continue;   /* orphan candidate: don't keep it */
+        if (!required) continue;   /* orphan candidate: not retained */
         if (nkeep == ncap) { ncap *= 2; keep = realloc(keep, (size_t)ncap * sizeof *keep); }
         char *spec = malloc(strlen(inst[i]->name) + strlen(inst[i]->version) + 2);
         sprintf(spec, "%s=%s", inst[i]->name, inst[i]->version);

@@ -14,10 +14,10 @@
  *        pre_upgrade()  post_upgrade()
  *        pre_remove()   post_remove()
  *
- *    and is sourced (not executed) by the shell, with the same arguments
- *    alpm uses: $1 = package version, $2 = caller-supplied args, $3 = target
- *    root. These run from inside the target root, which is what scripts that
- *    poke at /usr/... expect.
+ *    and is sourced rather than executed by the shell, with the same
+ *    positional arguments alpm uses: $1 = package version, $2 = caller-supplied
+ *    arguments, $3 = target root. They execute from inside the target root,
+ *    which is what scripts operating on absolute paths such as /usr/... expect.
  *
  * 2. REPOSITORY HOOKS  (read from <root>/etc/planet/hooks/, files ending .hook)
  *    The INI-style files pacman also reads from /etc/pacman.d/hooks:

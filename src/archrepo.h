@@ -11,7 +11,7 @@
  *   A .db.tar.gz is a plain gzip'd tar whose members are directories, one per
  *   package, named "<name>-<pkgver>-<pkgrel>", each containing a few files:
  *
- *       bash-5.2.037-1/desc      <- metadata (the only one we read for now)
+ *       bash-5.2.037-1/desc      <- metadata (the only file parsed here)
  *       bash-5.2.037-1/files     <- file list (needed later for install)
  *
  *   'desc' itself is a blank-line-separated list of "%TAG%" headers followed
@@ -28,7 +28,8 @@
  *       ncurses
  *
  *   The directory name is NOT trusted: %NAME%/%VERSION% are authoritative
- *   (directory names can't express epochs such as "1:1.37.2-3" unambiguously).
+ *   (a directory name cannot represent an epoch such as "1:1.37.2-3"
+ *   unambiguously).
  *
  *   Tags we consume: NAME VERSION ARCH DESC FILENAME CSIZE ISIZE SHA256SUM
  *   (single-valued) and DEPENDS CONFLICTS PROVIDES REPLACES (multi-valued).

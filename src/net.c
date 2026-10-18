@@ -205,7 +205,7 @@ int net_fetch(const char *url, unsigned char **out_buf, size_t *out_len,
         return -1;
     }
 
-    /* Empty body is legal (rare, but don't crash): hand back "". */
+    /* An empty body is legal, if unusual; return "" rather than NULL. */
     if (!g.data) {
         g.data = (unsigned char *)malloc(1);
         if (!g.data) {

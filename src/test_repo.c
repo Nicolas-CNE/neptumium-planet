@@ -4,10 +4,11 @@
  *
  * Two layers of coverage:
  *
- *   1. SYNTHETIC database, built in memory with libarchive's *write* API and
- *      parsed back with archrepo_load_mem(). This exercises the format rules
- *      deterministically, without network or mirror drift:
- *        - %NAME%/%VERSION% are authoritative (NOT the directory name),
+ *   1. A SYNTHETIC database, built in memory through libarchive's write API
+ *      and parsed back with archrepo_load_mem(). This exercises the format
+ *      rules deterministically, with no dependence on the network or on
+ *      upstream repository churn:
+ *        - %NAME%/%VERSION% are authoritative, not the directory name,
  *          including epochs ("1:2.3-4");
  *        - multi-valued DEPENDS/CONFLICTS/PROVIDES/REPLACES;
  *        - download metadata (FILENAME/CSIZE/ISIZE/SHA256SUM) and origin;

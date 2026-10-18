@@ -2,9 +2,10 @@
  * test_maxsat.c — verify the core-guided loop returns the optimal cost.
  * ======================================================================
  *
- * The solver must return the OPTIMUM, not an approximation: a suboptimal
- * answer would silently pick a more expensive package set than necessary.
- * So we check EXACTNESS against a brute-force oracle:
+ * The solver must return the exact optimum, not an approximation: a
+ * suboptimal result would select a more expensive package set without any
+ * indication that a cheaper alternative existed. Exactness is therefore
+ * verified against a brute-force oracle:
  *
  *   oracle(S) = min over all 2^n assignments of
  *               ( sum of weights of falsified soft clauses )

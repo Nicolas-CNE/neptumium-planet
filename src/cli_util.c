@@ -144,7 +144,7 @@ void build_demo_repo(repo *r) {
         pkg_add_provide(p, "libreadline.so=8-64");
         pkg_add_dep(p, "glibc");
     }
-    {   /* curl pulls a chain deep enough to be interesting */
+    {   /* curl pulls the deepest dependency chain in the demo repository */
         package *p = (package *)repo_newest(r, "curl", DEP_ANY, NULL);
         pkg_add_dep(p, "openssl>=3");
         pkg_add_dep(p, "pcre2>=10.30");

@@ -283,8 +283,8 @@ static clause *propagate(solver *s) {
                  * false_lit at lits[1]) leaves a STALE entry in watches[other]
                  * while the clause vanishes from watches[false_lit]; later BCP
                  * then re-reads the clause against the wrong watched pair and
-                 * can invent a spurious conflict -> false UNSAT that persists
-                 * across solve() calls. */
+                 * can produce a spurious conflict, yielding a false UNSAT that
+                 * persists across solve() calls. */
                 c->lits[1]    = c->lits[repl];
                 c->lits[repl] = false_lit;
                 watch_add(s, c->lits[1], c);           /* move to new list */
@@ -421,8 +421,8 @@ static void reduce_db(solver *s) {
 
     /* Protect every learnt clause that is currently the REASON of an assigned
      * variable on the trail. Freeing one would leave a dangling reason pointer
-     * that analyze() later dereferences (this crashed us once the MaxSAT
-     * deletion filter made reduce_db run frequently). */
+     * that analyze() later dereferences; the MaxSAT deletion filter makes
+     * reduce_db run frequently, which is what exposed the defect. */
     for (int i = 0; i < s->nlearnts; i++) s->learnts[i]->prot = 0;
     for (int i = 0; i < s->trail_sz; i++) {
         clause *r = s->reason[lit_var(s->trail[i])];

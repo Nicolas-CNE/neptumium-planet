@@ -2,10 +2,11 @@
  * test_pkg.c — lock down Arch-style version ordering and the package model.
  * ==========================================================================
  *
- * Version comparison is the single most bug-prone part of a package manager
- * (a wrong "1.10 > 1.9" or "~ ordering" silently upgrades/downgrades the wrong
- * thing). Every ordering rule below is the rpm/alpm rule Arch relies on, so we
- * pin them with concrete cases before trusting the encoding layer on top.
+ * Version comparison is the most error-prone component of a package manager:
+ * an incorrect "1.10 > 1.9" or tilde ordering silently installs the wrong
+ * version. Every ordering rule exercised below is the rpm/alpm rule that Arch
+ * itself relies on, and each is pinned with a concrete case before the
+ * encoding layer is allowed to build on top of it.
  */
 #include "pkg.h"
 #include <stdio.h>

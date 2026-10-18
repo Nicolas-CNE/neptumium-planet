@@ -109,7 +109,7 @@ struct maxsat {
     long  best_cost;       /* valid after MAXSAT_OPTIMAL */
     int   nkept;           /* soft clauses satisfied (not dropped) in optimum */
     int   solved;
-    long  rounds;          /* IHS iterations executed (stat for -S) */
+    long  rounds;          /* IHS iterations executed (reported by -S) */
 
     /* Scratch buffer reused each round to hold the assumption vector. */
     lit  *assumps;

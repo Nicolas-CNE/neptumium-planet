@@ -89,7 +89,7 @@ typedef struct solver {
     /* ---- assumption support ---------------------------------------------
      * The core-guided MaxSAT loop needs to solve the formula *under a set of
      * assumptions* (temporary unit clauses that are NOT permanently added) and,
-     * when the result is UNSAT, learn WHICH assumptions participated in the
+     * when the result is UNSAT, learn which assumptions participated in the
      * conflict. That subset is the "unsatisfiable core" and it is the signal
      * the MaxSAT reweighting loop uses to add optimality constraints.
      *

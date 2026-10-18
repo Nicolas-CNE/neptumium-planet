@@ -5,7 +5,7 @@
  * Each scenario is small enough to reason about by hand, and we assert the
  * OPTIMAL cost, WHICH candidates were chosen, and how many requests were met.
  * This locks down the three objectives interacting correctly: requests
- * (must-install), footprint (don't-install-needless), and newest-version
+ * (must-install), footprint (avoid installing needlessly), and newest-version
  * preference — plus Depends/Conflicts/Provides/Replaces producing valid sets.
  */
 #include "encode.h"
