@@ -265,6 +265,101 @@ int run_pkg_hook(const options *o, const package *p, install_phase phase) {
     return -1;
 }
 
+
+/* The installed package with this name, or NULL. */
+static const package *installed_by_name(const repo *r, const char *name) {
+    for (int i = 0; i < repo_count(r); i++) {
+        const package *p = repo_get(r, i);
+        if (p->installed && p->name && strcmp(p->name, name) == 0) return p;
+    }
+    return NULL;
+}
+
+/* First installed package that depends on `name`, or NULL. */
+static const char *first_dependant(const repo *r, const char *name) {
+    for (int i = 0; i < repo_count(r); i++) {
+        const package *p = repo_get(r, i);
+        if (!p->installed || !p->name || strcmp(p->name, name) == 0) continue;
+        for (int d = 0; d < p->ndepends; d++)
+            if (pkg_provides(p, name, p->depends[d].op, p->depends[d].version))
+                return p->name;
+    }
+    return NULL;
+}
+
+/* Explain an empty transaction in terms the user can act on.
+ *
+ * A transaction that changes nothing is not by itself informative: the same
+ * empty plan results from a request that is already met, a removal that is
+ * correctly refused because something still depends on it, and a request that
+ * no package in the configured repositories can satisfy. The last of those is a
+ * failure and the first is a no-op, so reporting them identically hides real
+ * problems. Caller frees the returned string. */
+static char *explain_empty(const repo *r, const encoder *e,
+                           const request_list *rl,
+                           const dep *drop, int ndrop,
+                           const dep *add, int nadd) {
+    size_t cap = 256, len = 0;
+    char *out = malloc(cap);
+    if (!out) return NULL;
+    out[0] = '\0';
+
+    /* Append a line, growing as needed. */
+    #define SAY(...) do { \
+        char _t[512]; \
+        int _n = snprintf(_t, sizeof _t, __VA_ARGS__); \
+        if (_n < 0) break; \
+        size_t _need = len + (size_t)_n + 1; \
+        if (_need > cap) { while (cap < _need) cap *= 2; \
+            char *_g = realloc(out, cap); if (!_g) { free(out); return NULL; } out = _g; } \
+        memcpy(out + len, _t, (size_t)_n + 1); \
+        len += (size_t)_n; \
+    } while (0)
+
+    int nsat = enc_satisfied(e);
+    if (rl->n > 0 && nsat == rl->n && nadd > 0) {
+        SAY("all %d requested package%s already satisfied", rl->n,
+            rl->n == 1 ? "" : "s");
+        return out;
+    }
+
+    /* A removal that produced no change: name the package that still needs it. */
+    if (nadd == 0 && ndrop > 0) {
+        for (int i = 0; i < ndrop; i++) {
+            const package *cur = installed_by_name(r, drop[i].name);
+            if (!cur) {
+                SAY("%s is not installed", drop[i].name);
+                continue;
+            }
+            /* The plan is empty, so this package survived the solve. Name the
+             * retained package that still requires it where one exists. */
+            const char *needler = first_dependant(r, drop[i].name);
+            if (needler)
+                SAY("cannot remove %s: %s depends on it", drop[i].name, needler);
+            else
+                SAY("cannot remove %s: it is still required by the system",
+                    drop[i].name);
+        }
+        return out;
+    }
+
+    if (rl->n > 0) {
+        /* Distinguish "nothing provides it" from "no consistent system". */
+        for (int k = 0; k < rl->n; k++)
+            if (!enc_request_met(e, k) &&
+                !repo_has_provider(r, rl->reqs[k].name, rl->reqs[k].op,
+                                   rl->reqs[k].version))
+                SAY("no package in the configured repositories provides %s",
+                    rl->reqs[k].name);
+        SAY("no consistent set of packages satisfies this request");
+        return out;
+    }
+
+    SAY("nothing to do");
+    return out;
+    #undef SAY
+}
+
 int run_transaction(const options *o, const char *label,
                            const dep *add, int nadd,
                            const dep *drop, int ndrop) {
@@ -329,7 +424,13 @@ int run_transaction(const options *o, const char *label,
         if (p->installed && !enc_chosen_pkg(e, p)) to_remove[ncr++] = p;
     }
 
-    if (!confirm_transaction(label, o->dry_run, to_install, nci, to_remove, ncr)) {
+    char *why = (nci == 0 && ncr == 0)
+              ? explain_empty(r, e, &rl, drop, ndrop, add, nadd)
+              : NULL;
+    int proceed = confirm_transaction(label, o->dry_run, to_install, nci,
+                                     to_remove, ncr, why);
+    free(why);
+    if (!proceed) {
         if (o->dry_run)
             printf("%sdry run: nothing was changed%s\n", C_DIM, C_OFF);
         else

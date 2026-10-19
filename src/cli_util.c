@@ -71,7 +71,8 @@ int ask_yes(const char *prompt) {
 
 int confirm_transaction(const char *label, int dry_run,
                                const package **install, int ninstall,
-                               const package **remove, int nremove) {
+                               const package **remove, int nremove,
+                               const char *empty_reason) {
     printf("%sTransaction plan%s\n", C_BOLD, C_OFF);
     for (int i = 0; i < ninstall; i++)
         printf("  %s+%s %-24s %s\n", C_GREEN, C_OFF,
@@ -80,7 +81,14 @@ int confirm_transaction(const char *label, int dry_run,
         printf("  %s-%s %-24s %s\n", C_RED, C_OFF,
                remove[i]->name, remove[i]->version);
     if (ninstall == 0 && nremove == 0) {
-        printf("  %s(nothing to do)%s\n", C_DIM, C_OFF);
+        /* Report why the plan is empty. The caller distinguishes the outcomes
+         * a user actually encounters: every request was already satisfied, a
+         * removal was declined because a retained package still depends on it,
+         * or no request could be satisfied from the configured repositories.
+         * A generic message leaves the user with no way to tell an intentional
+         * no-op from a resolver failure. */
+        printf("  %s%s%s\n", C_DIM,
+               empty_reason ? empty_reason : "(nothing to do)", C_OFF);
         return 1;
     }
     if (dry_run) return 0;   /* plan shown; nothing will be applied */

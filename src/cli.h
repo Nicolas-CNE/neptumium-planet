@@ -70,9 +70,13 @@ void die(int code, const char *fmt, ...)
 double now_ms(void);
 const char *hr_size(long bytes);
 int  ask_yes(const char *prompt);
+/* `empty_reason` explains an empty transaction in the user's terms ("already
+ * installed: foo", "cannot remove bar: baz depends on it"). NULL falls back to
+ * a generic line. */
 int  confirm_transaction(const char *label, int dry_run,
                          const package **install, int ninstall,
-                         const package **remove, int nremove);
+                         const package **remove, int nremove,
+                         const char *empty_reason);
 dep *parse_requests(int argc, char **argv, int *n_out);
 /* qsort() comparator for an array of const char* (never cast strcmp). */
 int cmp_str_ptr(const void *a, const void *b);
