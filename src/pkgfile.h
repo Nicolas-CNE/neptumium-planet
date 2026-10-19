@@ -57,6 +57,9 @@ int pkgfile_verify(const package *p, const char *path);
  * pkgfile_free_list().
  *
  * Returns 0 on success, -1 with pkgfile_error() set. */
+/* Paths the payload would install, listed without writing anything. */
+int  pkgfile_list(const char *path, char ***out, int *n_out);
+
 int pkgfile_extract(const char *path, const char *root,
                     char ***files_out, int *nfiles_out);
 

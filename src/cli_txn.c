@@ -18,6 +18,7 @@
 #define _GNU_SOURCE
 
 #include "cli.h"
+#include <dirent.h>
 
 #include <errno.h>
 #include <stdlib.h>
@@ -143,6 +144,80 @@ int load_system_state(repo *r, const char *root) {
     return n;
 }
 
+/* ---- file-conflict detection --------------------------------------------- */
+
+/* Which installed package owns this path, or NULL.
+ *
+ * Ownership is read from the same `files` file the package database writes, so
+ * this reflects what Planet believes it installed rather than whatever happens
+ * to be on disk. `skip` excludes the package being installed, because a package
+ * legitimately overwrites its own earlier files when it is upgraded. */
+static const char *owner_of_path(const char *root, const char *rel,
+                                 const char *skip) {
+    char dir[2048], path[2048];
+    snprintf(dir, sizeof dir, "%s/var/lib/planet/local", root);
+
+    DIR *d = opendir(dir);
+    if (!d) return NULL;
+    struct dirent *de;
+    static char owner[256];
+    char *found = NULL;
+    size_t skipn = skip ? strlen(skip) : 0;
+
+    while ((de = readdir(d))) {
+        if (de->d_name[0] == '.') continue;
+
+        /* A database directory is <name>-<version>. Match the name by PREFIX:
+         * the version may itself contain '-', so the name cannot be recovered by
+         * splitting on the last one. */
+        const char *base = de->d_name;
+        if (skipn) {
+            if (strncmp(base, skip, skipn) != 0) continue;
+            if (base[skipn] != '-') continue;      /* a longer name, not this one */
+            /* Skip this package's own directory entirely: a package always
+             * overwrites its own earlier files when it is reinstalled. */
+            continue;
+        } else {
+            snprintf(owner, sizeof owner, "%.200s", base);
+        }
+
+        /* Owned paths are recorded relative to the root, and the incoming list
+         * is in the same form, so an exact comparison is what is wanted. */
+        snprintf(path, sizeof path, "%s/%.200s/files", dir, de->d_name);
+        FILE *f = fopen(path, "r");
+        if (!f) continue;
+        char line[4096];
+        while (fgets(line, sizeof line, f)) {
+            size_t l = strlen(line);
+            while (l && (line[l-1] == '\n' || line[l-1] == '\r')) line[--l] = '\0';
+            if (strcmp(line, rel) == 0) { found = owner; break; }
+        }
+        fclose(f);
+        if (found) break;
+    }
+    closedir(d);
+    return found;
+}
+
+/* Report the paths `pkg` would install that another installed package already
+ * owns. Conflicts are reported but not refused: overwriting is sometimes
+ * intended (a package superseding another, an upgrade in place), so silently
+ * blocking would be worse than saying so. Returns the number of conflicts. */
+static int report_file_conflicts(const char *root, const char *pkgname,
+                                 char **files, int nfiles) {
+    int n = 0;
+    for (int i = 0; i < nfiles; i++) {
+        const char *rel = files[i];
+        if (!*rel) continue;
+        const char *owner = owner_of_path(root, rel, pkgname);
+        if (!owner) continue;
+        fprintf(stderr, "%swarning:%s %s would overwrite %s, owned by %s\n",
+                C_YELLOW, C_OFF, pkgname, rel, owner);
+        n++;
+    }
+    return n;
+}
+
 int do_install_one(const options *o, const package *p) {
     char **files = NULL;
     int    nfiles = 0;
@@ -154,6 +229,16 @@ int do_install_one(const options *o, const package *p) {
                     pkgfile_error());
             return -1;
         }
+        /* Check for collisions before unpacking anything: after extraction the
+         * other package's file is already gone and there is nothing to restore. */
+        {
+            char **incoming = NULL;
+            int nincoming = 0;
+            if (pkgfile_list(path, &incoming, &nincoming) == 0 && nincoming > 0)
+                report_file_conflicts(o->root, p->name, incoming, nincoming);
+            pkgfile_free_list(incoming, nincoming);
+        }
+
         if (pkgfile_extract(path, o->root, &files, &nfiles) != 0) {
             fprintf(stderr, "%serror:%s extract %s: %s\n", C_RED, C_OFF, p->name,
                     pkgfile_error());

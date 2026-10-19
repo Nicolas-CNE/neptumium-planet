@@ -321,6 +321,42 @@ static int extract_loop(struct archive *a, struct archive *ext, const char *path
     return 0;
 }
 
+/* List the paths a payload would install, WITHOUT writing anything.
+ *
+ * File-conflict detection has to decide before extraction: once the archive has
+ * been unpacked the damage is done, and there is no backup layer to restore
+ * from. So the entry names are collected first, checked against what the other
+ * installed packages already own, and only then is the payload unpacked. */
+int pkgfile_list(const char *path, char ***out, int *n_out) {
+    struct archive *a = archive_read_new();
+    if (!a) { *out = NULL; *n_out = 0; return -1; }
+    archive_read_support_format_tar(a);
+    archive_read_support_filter_zstd(a);
+    archive_read_support_filter_gzip(a);
+    if (archive_read_open_filename(a, path, 8192) != ARCHIVE_OK) {
+        snprintf(g_err, sizeof g_err, "cannot open %s", path);
+        archive_read_free(a);
+        *out = NULL; *n_out = 0;
+        return -1;
+    }
+    char **v = NULL; int n = 0, cap = 0;
+    struct archive_entry *e;
+    while (archive_read_next_header(a, &e) == ARCHIVE_OK) {
+        const char *nm = archive_entry_pathname(e);
+        if (!nm) continue;
+        if (n == cap) { cap = cap ? cap * 2 : 256;
+            char **g = realloc(v, (size_t)cap * sizeof *g);
+            if (!g) { free(v); archive_read_free(a); *out = NULL; *n_out = 0; return -1; }
+            v = g; }
+        v[n] = strdup(nm);
+        if (!v[n]) { free(v); archive_read_free(a); *out = NULL; *n_out = 0; return -1; }
+        n++;
+    }
+    archive_read_free(a);
+    *out = v; *n_out = n;
+    return 0;
+}
+
 int pkgfile_extract(const char *path, const char *root,
                     char ***files_out, int *nfiles_out) {
     char **files = NULL;
