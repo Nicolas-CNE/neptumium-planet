@@ -162,21 +162,41 @@ static int build_candidates(encoder *e) {
     unsigned char *reach = calloc((size_t)total, 1);
     /* Worklist of (name, op, version) still to resolve. Requests and hard
      * requirements are the roots; each reachable package contributes its own
-     * dependencies as further roots. Entries own their strings. */
-    char **qn = calloc((size_t)total, sizeof *qn);
-    dep_op *qo = malloc((size_t)total * sizeof *qo);
-    char **qv = calloc((size_t)total, sizeof *qv);
+     * dependencies as further roots. Entries borrow the package's own strings,
+     * which outlive this walk, so nothing here is owned.
+     *
+     * The worklist GROWS. It cannot be sized from `total` up front: every
+     * reachable package contributes its dependencies, so its length is bounded
+     * by the number of dependency edges, not by the number of packages. A fixed
+     * cap silently truncated the closure, which left some installed packages
+     * outside the candidate set; the hard-require clauses below then bound to
+     * the wrong variable and the solver dropped them, so a routine
+     * `planet install` deleted the running kernel from the root. */
+    int qcap = 256, qn_len = 0;
+    char **qn = malloc((size_t)qcap * sizeof *qn);
+    dep_op *qo = malloc((size_t)qcap * sizeof *qo);
+    char **qv = malloc((size_t)qcap * sizeof *qv);
     if (!reach || !qn || !qo || !qv) {
         free(reach); free(qn); free(qo); free(qv);
         return 0;
     }
 
-    int qn_len = 0, qn_cap = total;
     for (int pass = 0; pass < 2; pass++) {
         request *rs = pass ? e->hreqs : e->reqs;
         int      nr = pass ? e->nhreqs : e->nreqs;
         for (int k = 0; k < nr; k++) {
-            if (qn_len >= qn_cap) break;
+            if (qn_len == qcap) {
+                int nc = qcap * 2;
+                char **n1 = realloc(qn, (size_t)nc * sizeof *n1);
+                dep_op *n2 = realloc(qo, (size_t)nc * sizeof *n2);
+                char **n3 = realloc(qv, (size_t)nc * sizeof *n3);
+                if (!n1 || !n2 || !n3) {
+                    free(reach); free(n1 ? n1 : qn);
+                    free(n2 ? n2 : qo); free(n3 ? n3 : qv);
+                    return 0;
+                }
+                qn = n1; qo = n2; qv = n3; qcap = nc;
+            }
             qn[qn_len] = rs[k].name;
             qo[qn_len] = rs[k].op;
             qv[qn_len] = rs[k].ver;
@@ -199,7 +219,20 @@ static int build_candidates(encoder *e) {
             reach[ri] = 1;
             found++;
             /* Its dependencies become new roots so their providers join too. */
-            for (int d = 0; d < p->ndepends && qn_len < qn_cap; d++) {
+            for (int d = 0; d < p->ndepends; d++) {
+                if (qn_len == qcap) {
+                    int nc = qcap * 2;
+                    char **n1 = realloc(qn, (size_t)nc * sizeof *n1);
+                    dep_op *n2 = realloc(qo, (size_t)nc * sizeof *n2);
+                    char **n3 = realloc(qv, (size_t)nc * sizeof *n3);
+                    if (!n1 || !n2 || !n3) {
+                        free(reach); free(n1 ? n1 : qn);
+                        free(n2 ? n2 : qo); free(n3 ? n3 : qv);
+                        free(prov);
+                        return 0;
+                    }
+                    qn = n1; qo = n2; qv = n3; qcap = nc;
+                }
                 qn[qn_len] = p->depends[d].name;
                 qo[qn_len] = p->depends[d].op;
                 qv[qn_len] = p->depends[d].version;
@@ -440,10 +473,16 @@ static int enc_build(encoder *e) {
         if (!cl) { ok = 0; break; }
         for (int t = 0; t < np; t++) {
             int j = cand_index(e, prov[t]);
-            cl[t] = lit_mk(j >= 0 ? e->cands[j].v : e->cands[0].v, 0);
+            /* A provider that is not a candidate means the closure missed it.
+             * Binding the clause to some other candidate would silently encode
+             * the wrong constraint, so refuse to build instead. */
+            if (j < 0) { ok = 0; break; }
+            cl[t] = lit_mk(e->cands[j].v, 0);
         }
-        long wt = rq->weight > 0 ? rq->weight : e->w.request;
-        if (!maxsat_soft(e->m, cl, np, wt)) ok = 0;
+        if (ok) {
+            long wt = rq->weight > 0 ? rq->weight : e->w.request;
+            if (!maxsat_soft(e->m, cl, np, wt)) ok = 0;
+        }
         free(cl);
     }
 
@@ -457,9 +496,14 @@ static int enc_build(encoder *e) {
         if (!cl) { ok = 0; break; }
         for (int t = 0; t < np; t++) {
             int j = cand_index(e, prov[t]);
-            cl[t] = lit_mk(j >= 0 ? e->cands[j].v : e->cands[0].v, 0);
+            /* Same contract as the request clause above, and it matters more
+             * here: a pin whose provider is missing must not be satisfied by
+             * an unrelated package, or a routine install can delete a package
+             * the user never asked to remove. */
+            if (j < 0) { ok = 0; break; }
+            cl[t] = lit_mk(e->cands[j].v, 0);
         }
-        if (!maxsat_hard(e->m, cl, np)) ok = 0;
+        if (ok && !maxsat_hard(e->m, cl, np)) ok = 0;
         free(cl);
     }
     free(prov);
