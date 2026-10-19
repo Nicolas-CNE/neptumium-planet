@@ -49,6 +49,35 @@ static void test_ver_extra_segments(void) {
     check_ver("1.0a",   "1.0",     1, "alpha tail outranks end");
 }
 
+/* Arch pins split packages to one another with a bare version, while the
+ * provider is built with a pkgrel: systemd depends on "systemd-libs=262.1"
+ * and the package is "systemd-libs-262.1-1". The pin names the source version,
+ * not the build revision, so it must match across pkgrels. Treating it as an
+ * exact full-version match made every split package unresolvable, which is how
+ * "planet install systemd" came to report that no consistent system exists. */
+static void test_ver_eq_ignores_bare_pkgrel(void) {
+    check("eq: bare pin matches any pkgrel",
+          ver_satisfies("262.1-1", DEP_EQ, "262.1") == 1);
+    check("eq: bare pin matches a larger pkgrel",
+          ver_satisfies("262.1-7", DEP_EQ, "262.1") == 1);
+    check("eq: bare pin still rejects a different version",
+          ver_satisfies("263.1-1", DEP_EQ, "262.1") == 0);
+    check("eq: bare pin respects the epoch",
+          ver_satisfies("1:262.1-1", DEP_EQ, "1:262.1") == 1);
+    check("eq: bare pin rejects a different epoch",
+          ver_satisfies("2:262.1-1", DEP_EQ, "1:262.1") == 0);
+    /* A constraint that DOES carry a pkgrel keeps exact full-version meaning. */
+    check("eq: full pin matches the same pkgrel",
+          ver_satisfies("262.1-1", DEP_EQ, "262.1-1") == 1);
+    check("eq: full pin rejects a different pkgrel",
+          ver_satisfies("262.1-2", DEP_EQ, "262.1-1") == 0);
+    /* Ordering operators keep comparing whole versions, pkgrel included. */
+    check("ge: includes pkgrel in the comparison",
+          ver_satisfies("262.1-2", DEP_GE, "262.1-1") == 1);
+    check("ge: bare version still compares",
+          ver_satisfies("262.2", DEP_GE, "262.1") == 1);
+}
+
 static void test_ver_tilde(void) {
     /* '~' sorts BELOW everything: pre-releases come first */
     check_ver("1.0~rc1", "1.0",   -1, "tilde pre-release");
@@ -168,6 +197,7 @@ int main(void) {
     test_ver_basic();
     test_ver_numeric_segments();
     test_ver_extra_segments();
+    test_ver_eq_ignores_bare_pkgrel();
     test_ver_tilde();
     test_ver_epoch();
     test_ver_release();

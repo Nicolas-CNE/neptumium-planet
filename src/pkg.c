@@ -138,9 +138,45 @@ int ver_cmp(const char *a, const char *b) {
     return rpmvercmp(rla, rlb);
 }
 
+/* True if `v` carries a pkgrel, using the same last-'-' split as ver_cmp() so
+ * the two can never disagree about where the pkgrel begins. */
+static int has_pkgrel(const char *v) {
+    if (!v) return 0;
+    const char *colon = strchr(v, ':');
+    const char *body  = colon ? colon + 1 : v;
+    const char *dash  = strrchr(body, '-');
+    return dash != NULL && dash[1] != '\0';
+}
+
 int ver_satisfies(const char *ver, dep_op op, const char *constraint) {
     if (op == DEP_ANY || !constraint) return 1;   /* unconstrained */
     if (!ver) return 0;
+
+    if (op == DEP_EQ && !has_pkgrel(constraint)) {
+        /* Arch pins the members of a split package to one another with a bare
+         * version — "systemd depends: systemd-libs=262.1" while the provider is
+         * built as "systemd-libs-262.1-1". The pin names the upstream/API
+         * version, not the build revision, because pkgrel changes on every
+         * rebuild of the same source release. Comparing it with full ver_cmp()
+         * makes the provider look like a different version, and since every
+         * split package pins its siblings this way, the whole family becomes
+         * unresolvable: `planet install systemd` reported "no consistent set of
+         * packages satisfies this request".
+         *
+         * So when the constraint omits the pkgrel, compare the pkgver only and
+         * let any pkgrel match. A constraint that does carry a pkgrel keeps the
+         * exact full-version semantics. */
+        char *base = xstrdup(ver);
+        if (!base) return 0;
+        const char *colon = strchr(base, ':');
+        char *body = base + (colon ? (size_t)(colon + 1 - base) : 0);
+        char *dash = strrchr(body, '-');
+        if (dash) *dash = '\0';
+        int r = ver_cmp(base, constraint) == 0;
+        free(base);
+        return r;
+    }
+
     int c = ver_cmp(ver, constraint);
     switch (op) {
         case DEP_EQ: return c == 0;
