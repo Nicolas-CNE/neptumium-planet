@@ -407,7 +407,11 @@ int run_transaction(const options *o, const char *label,
     int nci = 0, ncr = 0;
     int  ncand = enc_ncandidates(e);
     int  nrepo = repo_count(r);
-    const package **to_install = malloc((size_t)(ncand ? ncand : 1) * sizeof *to_install);
+    /* to_install holds the newly-selected candidates PLUS one extra slot per
+     * explicit request, since a request naming an installed package adds a
+     * reinstall entry that is not a newly-selected candidate. */
+    int  nslot = ncand + (nadd > 0 ? nadd : 0) + 1;
+    const package **to_install = malloc((size_t)nslot * sizeof *to_install);
     const package **to_remove  = malloc((size_t)(nrepo ? nrepo : 1) * sizeof *to_remove);
     /* Installs come from the candidate set (chosen and not already present). */
     for (int i = 0; i < ncand; i++) {
@@ -422,6 +426,33 @@ int run_transaction(const options *o, const char *label,
     for (int i = 0; i < nrepo; i++) {
         const package *p = repo_get(r, i);
         if (p->installed && !enc_chosen_pkg(e, p)) to_remove[ncr++] = p;
+    }
+
+    /* Reinstall: naming a package that is already installed means "put this
+     * exact version back", as pacman does. The solver cannot express that as a
+     * constraint — the installed candidate already satisfies the request, so it
+     * is chosen and the plan is empty — because reinstalling is an ACTION to
+     * re-extract a payload, not a different package selection. So it is applied
+     * here: any explicitly requested package that the solve kept, and that is
+     * not on the way out, is scheduled for extraction regardless of the fact
+     * that it is already present.
+     *
+     * Only explicit requests qualify. A dependency that merely happens to be
+     * installed must never be reinstalled as a side effect. */
+    for (int a = 0; a < nadd; a++) {
+        for (int i = 0; i < nrepo; i++) {
+            const package *p = repo_get(r, i);
+            if (!p->installed || !enc_chosen_pkg(e, p)) continue;
+            if (!pkg_provides(p, add[a].name, add[a].op, add[a].version)) continue;
+            int dropping = 0, already = 0;
+            for (int k = 0; k < ndrop; k++)
+                if (strcmp(p->name, drop[k].name) == 0) dropping = 1;
+            for (int k = 0; k < nci; k++)
+                if (to_install[k] == p) already = 1;
+            if (dropping || already) continue;
+            to_install[nci++] = p;
+            break;
+        }
     }
 
     char *why = (nci == 0 && ncr == 0)

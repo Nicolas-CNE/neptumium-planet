@@ -1,15 +1,6 @@
-# Build output
+# Bootable images are published as release assets, not committed: the squashfs
+# is several hundred megabytes and both files exceed GitHub's per-file limit for
+# ordinary git objects. Build them with mksquashfs and xorriso, then upload:
+#   gh release upload v0.1.0-rootfs rootfs/neptunium.iso rootfs/neptunium-rootfs.squashfs
+rootfs/
 build/
-build-dbg/
-*.o
-planet
-
-# Editor / OS noise
-*.swp
-*~
-.DS_Store
-core
-core.*
-
-# Test scratch
-/tmp/

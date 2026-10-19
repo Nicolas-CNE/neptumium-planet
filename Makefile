@@ -56,3 +56,17 @@ test: all
 
 clean:
 	rm -rf $(BUILD)
+
+# Installation honours the usual GNU variables so packagers can redirect it.
+PREFIX ?= /usr/local
+DESTDIR ?=
+BINDIR ?= $(PREFIX)/bin
+
+install: planet
+	install -d $(DESTDIR)$(BINDIR)
+	install -m 0755 $(BUILD)/planet $(DESTDIR)$(BINDIR)/planet
+
+uninstall:
+	rm -f $(DESTDIR)$(BINDIR)/planet
+
+.PHONY: all test clean install uninstall
